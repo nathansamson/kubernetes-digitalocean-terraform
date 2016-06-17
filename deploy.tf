@@ -17,6 +17,24 @@ variable "pub_key" {}
 variable "pvt_key" {}
 variable "ssh_fingerprint" {}
 variable "number_of_workers" {}
+variable "etcd_count" {}
+variable "etcd_discovery_url" {}
+variable "region" {
+	default = "nyc3"
+}
+
+variable "size_etcd" {
+        default = "512mb"
+}
+
+variable "size_master" {
+        default = "1gb"
+}
+
+variable "size_worker" {
+        default = "1gb"
+}
+
 
 
 ###############################################################################
@@ -37,13 +55,24 @@ provider "digitalocean" {
 #
 ###############################################################################
 
+  
+resource "template_file" "etcd_cloud_config" {
+  template = "${file("00-etcd.yaml")}"
+  vars {
+    ETCD_DISCOVERY_URL = "${var.etcd_discovery_url}"
+  }
+}
 
 resource "digitalocean_droplet" "k8s_etcd" {
+    count = "${var.etcd_count}"
+
+    depends_on = ["template_file.etcd_cloud_config"]
     image = "coreos-stable"
     name = "k8s-etcd"
-    region = "nyc3"
-    size = "512mb"
-    user_data = "${file("00-etcd.yaml")}"
+    region = "${var.region}"
+    size = "${var.size_etcd}"
+    user_data = "${template_file.etcd_cloud_config.rendered}"
+    private_networking = "true"
     ssh_keys = [
         "${var.ssh_fingerprint}"
     ]
@@ -61,7 +90,8 @@ resource "template_file" "master_yaml" {
     template = "${file("01-master.yaml")}"
     vars {
         DNS_SERVICE_IP = "10.3.0.10"
-        ETCD_IP = "${digitalocean_droplet.k8s_etcd.ipv4_address}"
+        ETCD_IP = "${digitalocean_droplet.k8s_etcd.0.ipv4_address_private}"
+        ETCD_SERVERS = "${join(",", formatlist("http://%s:2379", digitalocean_droplet.k8s_etcd.*.ipv4_address_private))}"
         K8S_SERVICE_IP = "10.3.0.1"
         POD_NETWORK = "10.2.0.0/16"
         SERVICE_IP_RANGE = "10.3.0.0/24"
@@ -79,9 +109,10 @@ resource "template_file" "master_yaml" {
 resource "digitalocean_droplet" "k8s_master" {
     image = "coreos-stable"
     name = "k8s-master"
-    region = "nyc3"
-    size = "512mb"
+    region = "${var.region}"
+    size = "${var.size_master}"
     user_data = "${template_file.master_yaml.rendered}"
+    private_networking = "true"
     ssh_keys = [
         "${var.ssh_fingerprint}"
     ]
@@ -157,7 +188,7 @@ resource "template_file" "worker_yaml" {
     template = "${file("02-worker.yaml")}"
     vars {
         DNS_SERVICE_IP = "10.3.0.10"
-        ETCD_IP = "${digitalocean_droplet.k8s_etcd.ipv4_address}"
+        ETCD_SERVERS = "${join(",", formatlist("http://%s:2379", digitalocean_droplet.k8s_etcd.*.ipv4_address_private))}"
         MASTER_HOST = "${digitalocean_droplet.k8s_master.ipv4_address}"
     }
 }
@@ -175,9 +206,10 @@ resource "digitalocean_droplet" "k8s_worker" {
 
     image = "coreos-stable"
     name = "${format("k8s-worker-%02d", count.index + 1)}"
-    region = "nyc3"
-    size = "512mb"
+    region = "${var.region}"
+    size = "${var.size_worker}"
     user_data = "${template_file.worker_yaml.rendered}"
+    private_networking = "true"
     ssh_keys = [
         "${var.ssh_fingerprint}"
     ]
@@ -264,18 +296,6 @@ resource "null_resource" "deploy_dns_addon" {
             sed -e "s/\$DNS_SERVICE_IP/10.3.0.10/" < 03-dns-addon.yaml > ./secrets/03-dns-addon.yaml.rendered
             until kubectl get pods 2>/dev/null; do printf '.'; sleep 5; done
             kubectl create -f ./secrets/03-dns-addon.yaml.rendered
-EOF
-    }
-}
-
-resource "null_resource" "deploy_microbot" {
-    depends_on = ["null_resource.setup_kubectl"]
-    provisioner "local-exec" {
-        command = <<EOF
-            sed -e "s/\$EXT_IP1/${digitalocean_droplet.k8s_worker.0.ipv4_address}/" < 04-microbot.yaml > ./secrets/04-microbot.yaml.rendered
-            until kubectl get pods 2>/dev/null; do printf '.'; sleep 5; done
-            kubectl create -f ./secrets/04-microbot.yaml.rendered
-
 EOF
     }
 }

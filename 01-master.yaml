@@ -42,7 +42,7 @@ write_files:
           - /hyperkube
           - apiserver
           - --bind-address=0.0.0.0
-          - --etcd-servers=http://${ETCD_IP}:2379
+          - --etcd-servers=${ETCD_SERVERS}
           - --allow-privileged=true
           - --service-cluster-ip-range=${SERVICE_IP_RANGE}
           - --secure-port=443
@@ -120,7 +120,7 @@ write_files:
           image: gcr.io/google_containers/podmaster:1.1
           command:
           - /podmaster
-          - --etcd-servers=http://${ETCD_IP}:2379
+          - --etcd-servers=${ETCD_SERVERS}
           - --key=scheduler
           - --whoami=$public_ipv4
           - --source-file=/src/manifests/kube-scheduler.yaml
@@ -135,7 +135,7 @@ write_files:
           image: gcr.io/google_containers/podmaster:1.1
           command:
           - /podmaster
-          - --etcd-servers=http://${ETCD_IP}:2379
+          - --etcd-servers=${ETCD_SERVERS}
           - --key=controller
           - --whoami=$public_ipv4
           - --source-file=/src/manifests/kube-controller-manager.yaml
@@ -226,7 +226,7 @@ write_files:
 coreos:
   flannel:
     iface: $public_ipv4
-    etcd_endpoints: http://${ETCD_IP}:2379
+    etcd_endpoints: ${ETCD_SERVERS}
   units:
     - name: flanneld.service
       content: |

@@ -91,7 +91,7 @@ write_files:
 coreos:
   flannel:
     iface: $public_ipv4
-    etcd_endpoints: http://${ETCD_IP}:2379
+    etcd_endpoints: ${ETCD_SERVERS}
 
   units:
     - name: flanneld.service
