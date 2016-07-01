@@ -14,7 +14,7 @@ resource "digitalocean_droplet" "haproxy" {
   count = "2"
 
   image = "fedora-24-x64"
-  name = "${format("lb-%02d", count.index + 1)}"
+  name = "${format("%slb-%02d", var.prefix, count.index + 1)}"
   region = "${var.region}"
   size = "${var.size_lb}"
   private_networking = "true"
@@ -32,12 +32,13 @@ resource "digitalocean_droplet" "haproxy" {
       "dnf install haproxy keepalived python python-requests -y",
       "systemctl enable haproxy.service",
       "systemctl enable keepalived.service",
-      "setenforce 0",
+      "setsebool -P haproxy_connect_any 1",
+      "setsebool -P deny_ptrace 0",
       "chmod +x /usr/local/bin/assign-ip",
       "curl -L -o droplan.tar.gz https://github.com/tam7t/droplan/releases/download/v1.0.1/droplan_1.0.1_linux_amd64.tar.gz",
       "tar xvzf droplan.tar.gz",
       "sudo mv droplan /usr/local/bin/",
-      "(crontab -l; echo '*/10 * * * * DO_TOKEN=${var.do_token} /usr/local/bin/droplan >> /var/log/droplan 2>&1') | crontab - "
+      "(crontab -l; echo '*/10 * * * * DO_KEY=${var.do_read_token} PATH=/sbin /usr/local/bin/droplan >> /var/log/droplan 2>&1') | crontab - "
     ]
   }
 }
@@ -67,11 +68,11 @@ resource "null_resource" "haproxy-config" {
   }
 
   provisioner "local-exec" {
-    command = "echo '${element(template_file.haproxy-config.*.rendered, count.index)}' > haproxy-${count.index}.cfg"
+    command = "echo '${element(template_file.haproxy-config.*.rendered, count.index)}' > $PWD/secrets/haproxy-${count.index}.cfg.rendered"
   }
 
   provisioner "file" {
-    source = "haproxy-${count.index}.cfg"
+    source = "./secrets/haproxy-${count.index}.cfg.rendered"
     destination = "/etc/haproxy/haproxy.cfg"
   }
 
@@ -112,8 +113,6 @@ resource "template_file" "master" {
 resource "null_resource" "keepalived-config" {
   count = 2
 
-/*  depends_on = ["${element(template_file.haproxy-keepalived.*.rendered, count.index)}"]*/
-
   triggers {
     templates = "${element(template_file.haproxy-keepalived.*.rendered, count.index)}"
     floating = "${template_file.master.rendered}"
@@ -124,31 +123,26 @@ resource "null_resource" "keepalived-config" {
   }
 
   provisioner "local-exec" {
-    command = "echo '${element(template_file.haproxy-keepalived.*.rendered, count.index)}' > keepalived-${count.index}.cfg"
+    command = "echo '${element(template_file.haproxy-keepalived.*.rendered, count.index)}' > $PWD/secrets/keepalived-${count.index}.cfg.rendered"
   }
 
   provisioner "local-exec" {
-    command = "echo '${template_file.master.rendered}' > master-rendered.sh"
+    command = "echo '${template_file.master.rendered}' > $PWD/secrets/master.sh.rendered"
   }
 
   provisioner "file" {
-    source = "keepalived-${count.index}.cfg"
+    source = "./secrets/keepalived-${count.index}.cfg.rendered"
     destination = "/etc/keepalived/keepalived.conf"
   }
 
   provisioner "file" {
-    source = "master-rendered.sh"
+    source = "./secrets/master.sh.rendered"
     destination = "/etc/keepalived/master.sh"
   }
 
   provisioner "remote-exec" {
     inline = [
-      "chmod +x /etc/keepalived/master.sh"
-    ]
-  }
-
-  provisioner "remote-exec" {
-    inline = [
+      "chmod +x /etc/keepalived/master.sh",
       "systemctl restart keepalived.service"
     ]
   }

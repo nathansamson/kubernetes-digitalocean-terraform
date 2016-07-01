@@ -5,13 +5,15 @@
 eval `ssh-agent -s`
 ssh-add ~/.ssh/id_rsa
 
-export TF_VAR_number_of_workers=2
+export TF_VAR_number_of_workers=3
 export TF_VAR_do_token=$(cat ./secrets/DO_TOKEN)
+export TF_VAR_do_read_token=$(cat ./secrets/DO_READ_TOKEN)
 export TF_VAR_pub_key="~/.ssh/id_rsa.pub"
 export TF_VAR_pvt_key="~/.ssh/id_rsa"
 export TF_VAR_region="ams3"
 export TF_VAR_size_worker="8gb"
 export TF_VAR_etcd_count="3"
+export TF_VAR_prefix="eu1-cloud-"
 
 
 if [ ! -f ./secrets/ETCD_DISCOVERY_URL ]; then

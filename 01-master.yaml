@@ -303,3 +303,19 @@ coreos:
 
         [Install]
         WantedBy=multi-user.target
+    - name: droplan.service
+      content: |
+        [Unit]
+        Description=Protects the private network
+
+        [Service]
+        Type=oneshot
+        ExecStart=/usr/bin/sh -c 'DO_KEY=${DO_TOKEN} /opt/bin/droplan'
+    - name: droplan.timer
+      command: start
+      content: |
+        [Unit]
+        Description=Run droplan.service every 10 minutes
+
+        [Timer]
+        OnCalendar=*:0/10

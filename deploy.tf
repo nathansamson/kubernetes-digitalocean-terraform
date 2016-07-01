@@ -13,6 +13,7 @@
 
 
 variable "do_token" {}
+variable "do_read_token" {}
 variable "pub_key" {}
 variable "pvt_key" {}
 variable "ssh_fingerprint" {}
@@ -35,6 +36,9 @@ variable "size_worker" {
         default = "1gb"
 }
 
+variable "prefix" {
+	default = ""
+}
 
 
 ###############################################################################
@@ -55,11 +59,12 @@ provider "digitalocean" {
 #
 ###############################################################################
 
-  
+
 resource "template_file" "etcd_cloud_config" {
   template = "${file("00-etcd.yaml")}"
   vars {
     ETCD_DISCOVERY_URL = "${var.etcd_discovery_url}"
+		DO_TOKEN = "${var.do_read_token}"
   }
 }
 
@@ -68,7 +73,7 @@ resource "digitalocean_droplet" "k8s_etcd" {
 
     depends_on = ["template_file.etcd_cloud_config"]
     image = "coreos-stable"
-    name = "k8s-etcd"
+    name = "${var.prefix}k8s-etcd-${count.index}"
     region = "${var.region}"
     size = "${var.size_etcd}"
     user_data = "${template_file.etcd_cloud_config.rendered}"
@@ -76,6 +81,19 @@ resource "digitalocean_droplet" "k8s_etcd" {
     ssh_keys = [
         "${var.ssh_fingerprint}"
     ]
+
+		provisioner "remote-exec" {
+			inline = [
+				"curl -L -o droplan.tar.gz https://github.com/tam7t/droplan/releases/download/v1.0.1/droplan_1.0.1_linux_amd64.tar.gz",
+				"tar xvzf droplan.tar.gz",
+				"sudo mkdir -p /opt/bin/",
+				"sudo mv droplan /opt/bin/",
+			]
+		}
+
+		connection {
+			user = "core"
+		}
 }
 
 
@@ -95,6 +113,7 @@ resource "template_file" "master_yaml" {
         K8S_SERVICE_IP = "10.3.0.1"
         POD_NETWORK = "10.2.0.0/16"
         SERVICE_IP_RANGE = "10.3.0.0/24"
+				DO_TOKEN = "${var.do_read_token}"
     }
 }
 
@@ -108,7 +127,7 @@ resource "template_file" "master_yaml" {
 
 resource "digitalocean_droplet" "k8s_master" {
     image = "coreos-stable"
-    name = "k8s-master"
+    name = "${var.prefix}k8s-master"
     region = "${var.region}"
     size = "${var.size_master}"
     user_data = "${template_file.master_yaml.rendered}"
@@ -174,6 +193,19 @@ EOF
             user = "core"
         }
     }
+
+		provisioner "remote-exec" {
+			inline = [
+				"curl -L -o droplan.tar.gz https://github.com/tam7t/droplan/releases/download/v1.0.1/droplan_1.0.1_linux_amd64.tar.gz",
+				"tar xvzf droplan.tar.gz",
+				"sudo mkdir -p /opt/bin/",
+				"sudo mv droplan /opt/bin/",
+			]
+
+			connection {
+				user = "core"
+			}
+		}
 }
 
 
@@ -190,6 +222,7 @@ resource "template_file" "worker_yaml" {
         DNS_SERVICE_IP = "10.3.0.10"
         ETCD_SERVERS = "${join(",", formatlist("http://%s:2379", digitalocean_droplet.k8s_etcd.*.ipv4_address_private))}"
         MASTER_HOST = "${digitalocean_droplet.k8s_master.ipv4_address}"
+				DO_TOKEN = "${var.do_read_token}"
     }
 }
 
@@ -205,7 +238,7 @@ resource "digitalocean_droplet" "k8s_worker" {
     count = "${var.number_of_workers}"
 
     image = "coreos-stable"
-    name = "${format("k8s-worker-%02d", count.index + 1)}"
+    name = "${format("%sk8s-worker-%02d", var.prefix, count.index + 1)}"
     region = "${var.region}"
     size = "${var.size_worker}"
     user_data = "${template_file.worker_yaml.rendered}"
@@ -261,6 +294,19 @@ resource "digitalocean_droplet" "k8s_worker" {
             user = "core"
         }
     }
+
+		provisioner "remote-exec" {
+			inline = [
+				"curl -L -o droplan.tar.gz https://github.com/tam7t/droplan/releases/download/v1.0.1/droplan_1.0.1_linux_amd64.tar.gz",
+				"tar xvzf droplan.tar.gz",
+				"sudo mkdir -p /opt/bin/",
+				"sudo mv droplan /opt/bin/",
+			]
+
+			connection {
+				user = "core"
+			}
+		}
 }
 
 ###############################################################################
@@ -299,6 +345,3 @@ resource "null_resource" "deploy_dns_addon" {
 EOF
     }
 }
-
-
-

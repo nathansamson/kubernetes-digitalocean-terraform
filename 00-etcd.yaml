@@ -3,11 +3,26 @@
 coreos:
   etcd2:
     discovery: ${ETCD_DISCOVERY_URL}
-    advertise-client-urls: http://$public_ipv4:2379
+    advertise-client-urls: http://$private_ipv4:2379
     initial-advertise-peer-urls: http://$private_ipv4:2380
     listen-client-urls: http://0.0.0.0:2379
     listen-peer-urls: http://$private_ipv4:2380
   units:
     - name: etcd2.service
       command: start
+    - name: droplan.service
+      content: |
+        [Unit]
+        Description=Protects the private network
 
+        [Service]
+        Type=oneshot
+        ExecStart=/usr/bin/sh -c 'DO_KEY=${DO_TOKEN} /opt/bin/droplan'
+    - name: droplan.timer
+      command: start
+      content: |
+        [Unit]
+        Description=Run droplan.service every 10 minutes
+
+        [Timer]
+        OnCalendar=*:0/10
