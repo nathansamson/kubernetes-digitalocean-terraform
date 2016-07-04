@@ -6,7 +6,7 @@ write_files:
     content: |
       #!/bin/bash
 
-      K8S_VERSION=v1.2.0
+      K8S_VERSION=v${K8S_VERSION}
 
       mkdir -p /opt/bin
 
@@ -37,7 +37,7 @@ write_files:
         hostNetwork: true
         containers:
         - name: kube-apiserver
-          image: gcr.io/google_containers/hyperkube:v1.2.0
+          image: gcr.io/google_containers/hyperkube:v${K8S_VERSION}
           command:
           - /hyperkube
           - apiserver
@@ -46,7 +46,7 @@ write_files:
           - --allow-privileged=true
           - --service-cluster-ip-range=${SERVICE_IP_RANGE}
           - --secure-port=443
-          - --advertise-address=$public_ipv4
+          - --advertise-address=$private_ipv4
           - --admission-control=NamespaceLifecycle,NamespaceExists,LimitRanger,SecurityContextDeny,ServiceAccount,ResourceQuota
           - --tls-cert-file=/etc/kubernetes/ssl/apiserver.pem
           - --tls-private-key-file=/etc/kubernetes/ssl/apiserver-key.pem
@@ -87,7 +87,7 @@ write_files:
         hostNetwork: true
         containers:
         - name: kube-proxy
-          image: gcr.io/google_containers/hyperkube:v1.2.0
+          image: gcr.io/google_containers/hyperkube:v${K8S_VERSION}
           command:
           - /hyperkube
           - proxy
@@ -122,7 +122,7 @@ write_files:
           - /podmaster
           - --etcd-servers=${ETCD_SERVERS}
           - --key=scheduler
-          - --whoami=$public_ipv4
+          - --whoami=$private_ipv4
           - --source-file=/src/manifests/kube-scheduler.yaml
           - --dest-file=/dst/manifests/kube-scheduler.yaml
           volumeMounts:
@@ -137,7 +137,7 @@ write_files:
           - /podmaster
           - --etcd-servers=${ETCD_SERVERS}
           - --key=controller
-          - --whoami=$public_ipv4
+          - --whoami=$private_ipv4
           - --source-file=/src/manifests/kube-controller-manager.yaml
           - --dest-file=/dst/manifests/kube-controller-manager.yaml
           terminationMessagePath: /dev/termination-log
@@ -168,7 +168,7 @@ write_files:
         hostNetwork: true
         containers:
         - name: kube-controller-manager
-          image: gcr.io/google_containers/hyperkube:v1.2.0
+          image: gcr.io/google_containers/hyperkube:v${K8S_VERSION}
           command:
           - /hyperkube
           - controller-manager
@@ -210,7 +210,7 @@ write_files:
         hostNetwork: true
         containers:
         - name: kube-scheduler
-          image: gcr.io/google_containers/hyperkube:v1.2.0
+          image: gcr.io/google_containers/hyperkube:v${K8S_VERSION}
           command:
           - /hyperkube
           - scheduler
@@ -225,7 +225,7 @@ write_files:
 
 coreos:
   flannel:
-    iface: $public_ipv4
+    iface: $private_ipv4
     etcd_endpoints: ${ETCD_SERVERS}
   units:
     - name: flanneld.service
@@ -297,7 +297,7 @@ coreos:
          --config=/etc/kubernetes/manifests \
          --cluster-dns=${DNS_SERVICE_IP} \
          --cluster_domain=cluster.local \
-         --hostname-override=$public_ipv4
+         --hostname-override=$private_ipv4
         Restart=on-failure
         RestartSec=5
 

@@ -24,6 +24,10 @@ variable "region" {
 	default = "nyc3"
 }
 
+variable "k8s_version" {
+	default = "1.2.5"
+}
+
 variable "size_etcd" {
         default = "512mb"
 }
@@ -112,6 +116,7 @@ resource "template_file" "master_yaml" {
         POD_NETWORK = "10.2.0.0/16"
         SERVICE_IP_RANGE = "10.3.0.0/24"
 				DO_TOKEN = "${var.do_read_token}"
+				K8S_VERSION = "${var.k8s_version}"
     }
 }
 
@@ -219,6 +224,7 @@ resource "template_file" "worker_yaml" {
         ETCD_SERVERS = "${join(",", formatlist("http://%s:2379", digitalocean_droplet.k8s_etcd.*.ipv4_address_private))}"
         MASTER_HOST = "${digitalocean_droplet.k8s_master.ipv4_address}"
 				DO_TOKEN = "${var.do_read_token}"
+				K8S_VERSION = "${var.k8s_version}"
     }
 }
 
@@ -312,6 +318,10 @@ resource "digitalocean_droplet" "k8s_worker" {
 
 resource "null_resource" "setup_kubectl" {
     depends_on = ["digitalocean_droplet.k8s_worker"]
+		triggers = {
+			master = "${digitalocean_droplet.k8s_master.ipv4_address}"
+		}
+
     provisioner "local-exec" {
         command = <<EOF
             echo export MASTER_HOST=${digitalocean_droplet.k8s_master.ipv4_address} > $PWD/secrets/setup_kubectl.sh
