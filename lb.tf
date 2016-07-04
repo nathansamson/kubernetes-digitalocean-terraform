@@ -18,9 +18,7 @@ resource "digitalocean_droplet" "haproxy" {
   region = "${var.region}"
   size = "${var.size_lb}"
   private_networking = "true"
-  ssh_keys = [
-    "${var.ssh_fingerprint}"
-  ]
+  ssh_keys = ["${split(",", var.ssh_fingerprint)}"]
 
   provisioner "file" {
     source = "setup-ip.py"

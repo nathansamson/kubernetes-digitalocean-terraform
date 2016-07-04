@@ -78,9 +78,7 @@ resource "digitalocean_droplet" "k8s_etcd" {
     size = "${var.size_etcd}"
     user_data = "${template_file.etcd_cloud_config.rendered}"
     private_networking = "true"
-    ssh_keys = [
-        "${var.ssh_fingerprint}"
-    ]
+    ssh_keys = ["${split(",", var.ssh_fingerprint)}"]
 
 		provisioner "remote-exec" {
 			inline = [
@@ -132,9 +130,7 @@ resource "digitalocean_droplet" "k8s_master" {
     size = "${var.size_master}"
     user_data = "${template_file.master_yaml.rendered}"
     private_networking = "true"
-    ssh_keys = [
-        "${var.ssh_fingerprint}"
-    ]
+    ssh_keys = ["${split(",", var.ssh_fingerprint)}"]
 
     # Node created, let's generate the TLS assets
     provisioner "local-exec" {
@@ -243,9 +239,7 @@ resource "digitalocean_droplet" "k8s_worker" {
     size = "${var.size_worker}"
     user_data = "${template_file.worker_yaml.rendered}"
     private_networking = "true"
-    ssh_keys = [
-        "${var.ssh_fingerprint}"
-    ]
+    ssh_keys = ["${split(",", var.ssh_fingerprint)}"]
 
     # Provision Master's TLS Assets
     provisioner "file" {
